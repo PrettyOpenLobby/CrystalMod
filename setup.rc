@@ -1,0 +1,58 @@
+// Resources for PolShimSetup.exe -- the one-file installer.
+//
+// Three things live in here, and each one removes a failure the PowerShell
+// installer could not avoid:
+//
+//   RT_MANIFEST   requireAdministrator, so writing into Program Files is ONE UAC
+//                 prompt up front instead of an access-denied halfway through.
+//   RCDATA 101    PolHook.dll itself. One file to download; the installer and its
+//                 payload cannot get separated, and there is no second file for a
+//                 user to forget, misplace or leave stale.
+//   RCDATA 102    the shipping polshim.ini template, written only when the install
+//                 has none (the DLL's own iniheal adds later keys by itself).
+//
+// The RCDATA paths are relative to the BUILD directory, because build.bat runs rc
+// from build\ -- where PolHook.dll has just been produced. Build order matters:
+// PolHook.dll must already exist when this compiles, which build.bat guarantees by
+// building the installer last.
+#include <windows.h>
+#include <winver.h>
+#include "buildnum.h"
+
+1 RT_MANIFEST "setup.manifest"
+
+101 RCDATA "PolHook.dll"
+102 RCDATA "..\\dist\\polshim.ini"
+
+// The string version is cosmetic (Explorer's Properties tab); POLSHIM_BUILD in the
+// last numeric field is what actually identifies a release, and it comes from the
+// same buildnum.h the DLL compiles in, so the exe and its payload always agree.
+// Keep the literal in step with POLSHIM_VERSION in src\polshim.h.
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 0,1,0,POLSHIM_BUILD
+ PRODUCTVERSION 0,1,0,POLSHIM_BUILD
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS VOS__WINDOWS32
+ FILETYPE VFT_APP
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName",      "PoL-Shim"
+            VALUE "FileDescription",  "PoL-Shim setup for PlayOnline Viewer"
+            VALUE "FileVersion",      "0.1.0"
+            VALUE "InternalName",     "PolShimSetup"
+            VALUE "LegalCopyright",   "Free software. Not affiliated with SQUARE ENIX."
+            VALUE "OriginalFilename", "PolShimSetup.exe"
+            VALUE "ProductName",      "PoL-Shim"
+            VALUE "ProductVersion",   "0.1.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

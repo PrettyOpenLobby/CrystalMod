@@ -1,0 +1,21 @@
+; PolHook.dll PROXY -- the self-loading delivery vector for the shim.
+;
+; pol.exe STATICALLY imports PolHook.dll (SE's legacy WH_MOUSE hook, ~60 KB, 6
+; exports). It is already folder-local, so replacing it needs no WINEDLLOVERRIDES
+; under Proton, and because it is a static import our DllMain (inject.cpp) runs
+; BEFORE pol.exe's entry point -- early enough for inputmode's gamepad patch.
+;
+; This .def re-exports SE's 6 symbols as forwarders to the RENAMED original
+; (PolHook_orig.dll), so the Viewer's own PolHook behaviour is preserved while our
+; DllMain arms the whole shim. Install = rename SE's PolHook.dll -> PolHook_orig.dll,
+; drop this proxy as PolHook.dll. Reversible (delete proxy, rename original back).
+;
+; Export list read off the real DLL with a small export-dump script (one CPolHook class +
+; two free functions + one data symbol). Keep it in sync if SE's ABI ever changes.
+EXPORTS
+    ??0CPolHook@@QAE@XZ=PolHook_orig.??0CPolHook@@QAE@XZ
+    ??4CPolHook@@QAEAAV0@ABV0@@Z=PolHook_orig.??4CPolHook@@QAEAAV0@ABV0@@Z
+    ?MakeHook@@YA_NPAUHWND__@@@Z=PolHook_orig.?MakeHook@@YA_NPAUHWND__@@@Z
+    ?UnHook@@YAXXZ=PolHook_orig.?UnHook@@YAXXZ
+    ?fnPolHook@@YAHXZ=PolHook_orig.?fnPolHook@@YAHXZ
+    ?nPolHook@@3HA=PolHook_orig.?nPolHook@@3HA

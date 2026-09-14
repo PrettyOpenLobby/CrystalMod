@@ -1,0 +1,6 @@
+PlayOnline, PlayOnline Viewer and the game titles are trademarks of Square
+Enix Co., Ltd. This project is not affiliated with or endorsed by Square Enix.
+
+The file PolHook.dll shipped with the PlayOnline Viewer is Square Enix's; the
+installer renames it to PolHook_orig.dll and places this project's proxy DLL
+in its place. Square Enix's file is neither modified nor redistributed.

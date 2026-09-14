@@ -1,0 +1,31 @@
+# polshim-msg.tsv -- dialog translation table for ALL PlayOnline titles.
+#
+# Read at startup by src/msgxlate.cpp, which is called from the MessageBoxA/W
+# hooks. Because the interception is at user32, one table covers Front Mission
+# Online, Fantasy Earth, Tetra Master, FFXI and the Viewer itself.
+#
+# FORMAT   <source><TAB><replacement>       UTF-8, one per line
+#   - '#' starts a comment; blank lines ignored.
+#   - A source ending in '*' matches by PREFIX. Use it for dialogs built at
+#     runtime, where a fixed sentence is followed by a path or an error code.
+#   - Write "\n" for a newline in either column, so every entry stays one line.
+#   - Caption and body are looked up SEPARATELY: a dialog often has a
+#     translatable body and a caption that is only a file path.
+#
+# FILLING IT IN
+#   Anything not matched is appended to polshim-msg-missing.tsv beside this file,
+#   already in this format with a trailing TAB. Run the client, hit the error,
+#   then paste the line here and type the English after the tab. No rebuild --
+#   the table is re-read every time the client starts.
+#
+# WHAT THIS CANNOT DO
+#   It only sees dialogs raised through the OS. A message a game DRAWS ITSELF
+#   never reaches MessageBox -- FMO's "could not connect to the server" is one of
+#   those (measured 2026-08-14: it appears on screen and produces no MessageBox
+#   call at all). Those live in the title's own string data and have to be
+#   translated there.
+
+# --- Front Mission Online ---------------------------------------------------
+# Its user-config write failure. The caption is the path FMO wanted, so it is
+# matched by prefix and replaced with something that says what actually broke.
+C:\Program Files (x86)\PlayOnline\SquareEnix\FRONT MISSION ONLINE/usr/config/*	Front Mission Online: could not write its user settings file

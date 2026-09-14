@@ -1,0 +1,41 @@
+// Version resource for the PolHook.dll PROXY.
+//
+// pol.exe version-checks its DLLs via VerQueryValue/GetFileVersionInfo (resolved
+// dynamically, which is why they are absent from the static import table). A DLL
+// with no version resource -- our proxy was 0.0.0.0 -- fails that check and pol.exe
+// reports "a required PlayOnline file is missing, please reinstall." This resource
+// replicates SE's PolHook.dll VS_VERSION_INFO verbatim so the check passes.
+//
+// Fields read off SE's original (1.18.07 / ProductVersion 1.18.00). Keep in sync if
+// a different Viewer build ever checks a different value.
+#include <winver.h>
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,18,7,0
+ PRODUCTVERSION 1,18,0,0
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS VOS__WINDOWS32
+ FILETYPE VFT_DLL
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName",      "SQUARE ENIX CO., LTD."
+            VALUE "FileDescription",  "PlayOnline Viewer polhook Module"
+            VALUE "FileVersion",      "1.18.07"
+            VALUE "InternalName",     "PlayOnline Viewer polhook Module"
+            VALUE "LegalCopyright",   "Copyright (C) 2001-2008 SQUARE ENIX CO., LTD."
+            VALUE "OriginalFilename", "PolHook.dll"
+            VALUE "ProductName",      "PlayOnline Viewer"
+            VALUE "ProductVersion",   "1.18.00"
+            VALUE "Comments",         " "
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

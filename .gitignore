@@ -1,0 +1,9 @@
+build/
+*.obj
+*.dll
+*.exe
+*.res
+*.map
+*.log
+*.bin
+__pycache__/
