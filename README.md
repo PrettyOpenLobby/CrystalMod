@@ -25,6 +25,15 @@ ours forwards the six original exports to `PolHook_orig.dll` and runs its
 hooks from `DllMain`, before the Viewer's entry point. Square Enix's file
 is renamed, never modified or redistributed. Uninstall = rename it back.
 
+## Download
+
+Every release on the repository's Releases page carries `PolShimSetup.exe`
+(the Windows installer), `PolHook.dll` with its `PolHook.dll.sha256`,
+`install.sh` and `Install-PolHookProxy.ps1`, the `polshim.ini` template, a
+`SHA256SUMS` file and a zip of the whole set. Every push to `main` also
+leaves the same set as a workflow artifact for anyone who wants the newest
+build before a release is cut.
+
 ## Install
 
 **Windows**: run `PolShimSetup.exe`, enter your server address when asked
@@ -41,7 +50,10 @@ the same file. `[redirect] server=` is the only required value.
 
 If the server hosts a shim build (OpenLobby serves `/shim/dist/` from its
 portal tree), the shim checks it hourly and offers newer builds; it never
-installs an older one. Set `[autoupdate] enable=0` to opt out.
+installs an older one. Set `[autoupdate] enable=0` to opt out. To host one,
+unzip a release's set into `www/shim/dist/` of the OpenLobby checkout: the
+`PolHook.dll.sha256` in it is the file the updater and `install.sh` compare
+against.
 
 ## Build
 

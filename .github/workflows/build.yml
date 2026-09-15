@@ -1,5 +1,19 @@
 name: build
-on: [push, pull_request]
+# Every push and pull request: the hygiene scan and an MSVC x86 build of
+# PolHook.dll + PolShimSetup.exe, kept as a workflow artifact. A version tag
+# (`vX.Y.Z`) additionally publishes a GitHub Release carrying the two
+# binaries, the Steam Deck installer, the settings template and a checksum
+# file, plus one zip of all of them.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
 jobs:
   hygiene:
     runs-on: ubuntu-latest
@@ -10,6 +24,7 @@ jobs:
           python-version: "3.12"
       - run: python check.py --selftest
       - run: python check.py
+
   shim:
     runs-on: windows-latest
     steps:
@@ -17,9 +32,46 @@ jobs:
       - name: build PolHook.dll and PolShimSetup.exe (MSVC x86)
         shell: cmd
         run: build.bat
+      - name: stage the download set
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force stage | Out-Null
+          Copy-Item build\PolHook.dll, build\PolShimSetup.exe stage\
+          Copy-Item dist\install.sh, dist\Install-PolHookProxy.ps1, dist\polshim.ini, README.md stage\
+          # PolHook.dll.sha256 in `sha256sum` format: the updater and install.sh
+          # compare against exactly this file when a server hosts the set
+          $h = (Get-FileHash stage\PolHook.dll -Algorithm SHA256).Hash.ToLower()
+          "$h  PolHook.dll" | Out-File -Encoding ascii -NoNewline stage\PolHook.dll.sha256
+          Get-ChildItem stage | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          } | Out-File -Encoding ascii stage\SHA256SUMS
+          Compress-Archive -Path stage\* -DestinationPath CrystalMod.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: polshim
+          name: crystalmod
           path: |
-            build/PolHook.dll
-            build/PolShimSetup.exe
+            stage/
+            CrystalMod.zip
+
+  release:
+    needs: [hygiene, shim]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: crystalmod
+      - name: name the zip after the tag
+        run: mv CrystalMod.zip "CrystalMod-${GITHUB_REF_NAME}.zip"
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            CrystalMod-${{ github.ref_name }}.zip
+            stage/PolShimSetup.exe
+            stage/PolHook.dll
+            stage/PolHook.dll.sha256
+            stage/install.sh
+            stage/Install-PolHookProxy.ps1
+            stage/polshim.ini
+            stage/SHA256SUMS
+          generate_release_notes: true
