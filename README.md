@@ -36,12 +36,17 @@ build before a release is cut.
 
 ## Install
 
-**Windows**: run `PolShimSetup.exe`, enter your server address when asked
-(there is no default), done. Command line: `PolShimSetup.exe --server=ADDR`.
+**Windows**: run `PolShimSetup.exe`. It asks which server to use and offers
+`play.openlobby.fyi`; press Enter for that, or type another name or IP address. Command line:
+`PolShimSetup.exe --server=ADDR`.
 
 **Steam Deck / Proton**: `bash install.sh` from the `dist/` folder; it
-finds the PlayOnline install under Steam, asks for the server address, and
-enables D3D8 through DXVK. `install.sh --revert` undoes everything.
+finds the PlayOnline install under Steam, asks for the server (same default),
+and enables D3D8 through DXVK. `install.sh --revert` undoes everything.
+
+A server name is looked up once, by the installer, and written to `polshim.ini`
+as an IP address, because that is the form the shim reads. If the server moves
+to a new address, run the installer again.
 
 Settings live in `polshim.ini` next to `pol.exe`; the in-game dialog edits
 the same file. `[redirect] server=` is the only required value.
@@ -70,7 +75,8 @@ runner and publishes both artifacts.
 
 - No Square Enix files. The shim is a proxy for a file that stays on your
   disk under its new name.
-- No server address. You supply your own.
+- No server of its own. The installers offer the OpenLobby public server and
+  take any other address you give them.
 
 ## License
 

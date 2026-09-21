@@ -47,12 +47,11 @@
 #define IDR_POLHOOK_DLL   101
 #define IDR_POLSHIM_INI   102
 
-// The server offered at the prompt. EMPTY by default: this build ships pointed
-// at nobody, so the installer asks for an address and refuses to continue
-// without one. Overridable at build time (/DPOLSHIM_DEFAULT_SERVER=\"a.b.c.d\")
-// for a build that should offer one, mirroring install.sh's DEFAULT_SERVER.
+// The server offered at the prompt; Enter accepts it. Overridable at build time
+// (/DPOLSHIM_DEFAULT_SERVER=\"a.b.c.d\", or \"\" for a build that offers none and
+// refuses to continue without an address), mirroring install.sh's DEFAULT_SERVER.
 #ifndef POLSHIM_DEFAULT_SERVER
-#define POLSHIM_DEFAULT_SERVER ""
+#define POLSHIM_DEFAULT_SERVER "play.openlobby.fyi"
 #endif
 
 // First door tried for the shim bundle. The 5130x band is what the Viewer itself uses
@@ -195,6 +194,41 @@ static const BYTE* resource(int id, DWORD* len)
 // SHA-256 (bcrypt) -- used only to verify a DLL pulled from the server, so a
 // truncated or man-in-the-middled plain-HTTP download can never be installed.
 // -----------------------------------------------------------------------------
+// A dotted quad is returned as it is; anything else is looked up. ws2_32 is
+// loaded by hand so this file needs no winsock headers (they fight windows.h
+// over include order) and the installer gains no static import.
+static bool resolve_ipv4(const char* name, char* out_, size_t cap)
+{
+    unsigned a, b, c, d; char tail;
+    if (sscanf_s(name, "%u.%u.%u.%u%c", &a, &b, &c, &d, &tail, 1) == 4 &&
+        a < 256 && b < 256 && c < 256 && d < 256) {
+        _snprintf_s(out_, cap, _TRUNCATE, "%u.%u.%u.%u", a, b, c, d);
+        return true;
+    }
+    struct HostEnt { char* name; char** aliases; short type; short length; char** addrs; };
+    typedef int      (WINAPI* PFN_START)(WORD, void*);
+    typedef HostEnt* (WINAPI* PFN_GHBN)(const char*);
+    typedef int      (WINAPI* PFN_CLEAN)(void);
+    HMODULE ws = LoadLibraryA("ws2_32.dll");
+    if (!ws) return false;
+    PFN_START start = (PFN_START)GetProcAddress(ws, "WSAStartup");
+    PFN_GHBN  ghbn  = (PFN_GHBN) GetProcAddress(ws, "gethostbyname");
+    PFN_CLEAN clean = (PFN_CLEAN)GetProcAddress(ws, "WSACleanup");
+    bool found = false;
+    BYTE wsadata[1024];
+    if (start && ghbn && clean && start(0x0202, wsadata) == 0) {
+        HostEnt* he = ghbn(name);
+        if (he && he->type == 2 /* AF_INET */ && he->length == 4 && he->addrs && he->addrs[0]) {
+            const BYTE* ip = (const BYTE*)he->addrs[0];
+            _snprintf_s(out_, cap, _TRUNCATE, "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
+            found = true;
+        }
+        clean();
+    }
+    FreeLibrary(ws);
+    return found;
+}
+
 static bool sha256_hex(const BYTE* data, DWORD len, char out_[65])
 {
     BCRYPT_ALG_HANDLE alg = NULL; BCRYPT_HASH_HANDLE h = NULL;
@@ -453,7 +487,8 @@ static void usage(void)
       "PoL-Shim setup " POLSHIM_VERSION " (build %d)\n\n"
       "  PolShimSetup.exe [options]\n\n"
       "  --dir=<path>      PlayOnlineViewer folder (default: auto-detect, then ask)\n"
-      "  --server=<addr>   server address to point the client at (default: ask)\n"
+      "  --server=<addr>   server to point the client at, a name or an IP address\n"
+      "                    (default: ask, offering play.openlobby.fyi)\n"
       "  --gamepad         force controller mode ([inputmode] mode=force_gamepad)\n"
       "  --no-update       do not fetch a newer shim from the server first\n"
       "  --update-url=<u>  where to fetch it from: a URL, or `server` for\n"
@@ -559,6 +594,19 @@ int main(int argc, char** argv)
         return fail("A server address is required. Pass --server=<address>, set "
                     "POLSHIM_SERVER in the environment, or type one at the prompt.");
     ok("Server: %s", server);
+    // The shim reads [redirect] server= as a DOTTED IPv4 ADDRESS and nothing else
+    // (it parses it while the DLL loads, where a DNS lookup is not safe). This
+    // prompt has always said "IP or hostname", so a typed hostname used to give
+    // an install that armed nothing and connected nowhere, silently. Resolve it
+    // here, once, and write the address.
+    char server_ip[64] = "";
+    if (!resolve_ipv4(server, server_ip, sizeof(server_ip)))
+        return fail("Could not look up the address of \"%s\". Check the name and your "
+                    "connection, or give the server's IP address with --server=<ip>.", server);
+    if (_stricmp(server, server_ip) != 0) {
+        ok("  which is %s", server_ip);
+        info("If that server ever moves to a new address, run this installer again.");
+    }
 
     // --- 3. payload: embedded, or newer from the server -------------------------
     DWORD dll_len = 0;
@@ -656,7 +704,7 @@ int main(int argc, char** argv)
         info("polshim.ini already here -- keeping your settings (the shim adds any new keys itself).");
     }
     if (file_exists(ini)) {
-        ini_set(ini, "redirect", "server", server);
+        ini_set(ini, "redirect", "server", server_ip);
         ok("Set [redirect] server=%s", server);
         if (gamepad) { ini_set(ini, "inputmode", "mode", "force_gamepad"); ok("Set [inputmode] mode=force_gamepad"); }
     }

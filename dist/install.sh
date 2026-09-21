@@ -26,10 +26,10 @@ set -euo pipefail
 # (curl | bash), and set -u would trip on it; $0 is "bash" there, so HERE = cwd.
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 
-# Default server offered at the prompt. EMPTY: this script ships pointed at nobody,
-# so it always asks and refuses to install without an address. Set
-# POLSHIM_DEFAULT_SERVER=... in the environment to offer one at the prompt.
-DEFAULT_SERVER="${POLSHIM_DEFAULT_SERVER:-}"
+# Default server offered at the prompt; Enter accepts it. Set
+# POLSHIM_DEFAULT_SERVER=... in the environment to offer another, or set it EMPTY
+# to offer none (the script then refuses to install without an address).
+DEFAULT_SERVER="${POLSHIM_DEFAULT_SERVER-play.openlobby.fyi}"
 
 die(){ echo "[!] $*" >&2; exit 1; }
 ok(){  echo "[+] $*"; }
@@ -51,6 +51,29 @@ resolve_server() {
     IFS= read -r ans < /dev/tty || true
   fi
   printf '%s' "$(printf '%s' "${ans:-$DEFAULT_SERVER}" | tr -d '[:space:]')"
+}
+
+# The shim reads [redirect] server= as a DOTTED IPv4 ADDRESS and nothing else
+# (it parses it while the DLL is loading, where a DNS lookup is not safe). Both
+# installers have always asked for "IP or hostname", so a typed hostname used to
+# produce an install that armed nothing and connected nowhere, without a word.
+# The name is therefore resolved HERE, once, and the address is what gets written.
+# Prints the address, or nothing when the name does not resolve.
+to_ipv4() {
+  local name="$1" ip=""
+  if printf '%s' "$name" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$'; then
+    printf '%s' "$name"; return 0
+  fi
+  if command -v getent >/dev/null 2>&1; then
+    ip=$(getent ahostsv4 "$name" 2>/dev/null | awk 'NR==1 {print $1}')
+  fi
+  if [ -z "$ip" ] && command -v python3 >/dev/null 2>&1; then
+    ip=$(python3 -c 'import socket,sys; print(socket.gethostbyname(sys.argv[1]))' "$name" 2>/dev/null || true)
+  fi
+  if [ -z "$ip" ] && command -v nslookup >/dev/null 2>&1; then
+    ip=$(nslookup "$name" 2>/dev/null | awk '/^Address/ && NR>2 {print $2; exit}' | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$' || true)
+  fi
+  printf '%s' "$ip"
 }
 
 # Set `server=<val>` under [redirect] in an ini: replace an existing/commented server=,
@@ -766,8 +789,15 @@ fi
 # Bake the chosen server into the ini so PLAY uses it too -- no Steam launch option
 # needed. netredir arms the redirect on any server=; a Steam POLSHIM_SERVER still wins.
 if [ -n "$SERVER" ] && [ "$SERVER" != "CHANGE-ME" ]; then
-  set_redirect_server "$INI" "$SERVER"
-  ok "Set [redirect] server=$SERVER in polshim.ini"
+  SERVER_IP="$(to_ipv4 "$SERVER")"
+  [ -n "$SERVER_IP" ] || die "Could not look up the address of '$SERVER'. Check the name and your connection, or give the server's IP address with --server=<ip>."
+  set_redirect_server "$INI" "$SERVER_IP"
+  if [ "$SERVER_IP" = "$SERVER" ]; then
+    ok "Set [redirect] server=$SERVER_IP in polshim.ini"
+  else
+    ok "Set [redirect] server=$SERVER_IP in polshim.ini ($SERVER)"
+    info "If that server ever moves to a new address, run this installer again."
+  fi
 else
   echo "[~] no server chosen -- set [redirect] server= in polshim.ini (or POLSHIM_SERVER at play)."
 fi
