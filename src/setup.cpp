@@ -456,7 +456,9 @@ static void usage(void)
       "  --server=<addr>   server address to point the client at (default: ask)\n"
       "  --gamepad         force controller mode ([inputmode] mode=force_gamepad)\n"
       "  --no-update       do not fetch a newer shim from the server first\n"
-      "  --update-url=<u>  where to fetch it from (default http://<server>/shim/dist)\n"
+      "  --update-url=<u>  where to fetch it from: a URL, or `server` for\n"
+      "                    http://<server>/shim/dist (default: the project's latest\n"
+      "                    GitHub release)\n"
       "  --revert          put SE's original PolHook.dll back and exit\n"
       "  --force           install even while a Viewer is running (second installs)\n"
       "  --where           just report which install is found, change nothing\n"
@@ -570,9 +572,14 @@ int main(int argc, char** argv)
         // deployment may not run at all (on prod it is behind a compose profile because
         // the NAS UI owns port 80). Preferring :80 is what made "couldn't reach the
         // update server" the normal outcome rather than the exceptional one.
+        // Default: the project's latest GitHub release, NOT the game server (see
+        // POLSHIM_UPDATE_BASE in polshim.h). `--update-url=server` keeps the old
+        // <server>/shim/dist layout for an operator who hosts their own build.
         char tried[2][600]; int ntry = 0;
-        if (update_url[0]) {
+        if (update_url[0] && _stricmp(update_url, "server") != 0) {
             strncpy_s(tried[ntry++], update_url, _TRUNCATE);
+        } else if (!update_url[0]) {
+            strncpy_s(tried[ntry++], POLSHIM_UPDATE_BASE, _TRUNCATE);
         } else if (server[0]) {
             _snprintf_s(tried[ntry++], sizeof(tried[0]), _TRUNCATE, "http://%s:%d/shim/dist", server, POLSHIM_BAND_PORT);
             _snprintf_s(tried[ntry++], sizeof(tried[0]), _TRUNCATE, "http://%s/shim/dist", server);

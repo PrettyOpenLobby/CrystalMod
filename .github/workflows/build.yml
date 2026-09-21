@@ -77,5 +77,6 @@ jobs:
             stage/install.sh
             stage/Install-PolHookProxy.ps1
             stage/polshim.ini
+            stage/README.md
             stage/SHA256SUMS
           generate_release_notes: true

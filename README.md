@@ -48,12 +48,16 @@ the same file. `[redirect] server=` is the only required value.
 
 ## Updates
 
-If the server hosts a shim build (OpenLobby serves `/shim/dist/` from its
-portal tree), the shim checks it hourly and offers newer builds; it never
-installs an older one. Set `[autoupdate] enable=0` to opt out. To host one,
-unzip a release's set into `www/shim/dist/` of the OpenLobby checkout: the
-`PolHook.dll.sha256` in it is the file the updater and `install.sh` compare
-against.
+The shim checks the project's latest GitHub release hourly and offers newer
+builds; it never installs an older one. Both installers fetch from the same
+place. Set `[autoupdate] enable=0` to opt out.
+
+Updates do not come from the game server you play on. A server operator who
+wants to host a build for their own players unzips a release's set into
+`www/shim/dist/` of the OpenLobby checkout and has them set `[autoupdate]
+url=server` (installers: `--update-url=server`, or `POLSHIM_UPDATE_URL=server`
+for `install.sh`). The `PolHook.dll.sha256` in that folder is what the updater
+and `install.sh` compare against.
 
 ## Build
 

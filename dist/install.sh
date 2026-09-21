@@ -8,16 +8,16 @@
 #
 #   install:  ./install.sh [path] [--server=<ip>]     (path auto-detected if omitted)
 #   revert:   ./install.sh [path] --revert
-#   options:  --server=<ip>  set the server (else you're prompted); --no-update  skip self-update
+#   options:  --server=<address>  set the server (else you're prompted); --no-update  skip self-update
 #             --no-dxvk-d3d8  leave Proton's d3d8 on wined3d (see ensure_dxvk_d3d8)
 #
 # THIS SCRIPT IS THE WHOLE DOWNLOAD: if PolHook.dll / polshim.ini are not sitting
-# next to it, it fetches them (hash-verified) from the server you choose. A folder
-# copy that DOES have them still works offline, exactly as before.
+# next to it, it fetches them (hash-verified) from the project's latest GitHub
+# release. A folder copy that DOES have them still works offline, as before.
 #
 # It auto-detects the Steam install, PROMPTS for your server (Enter = the default
 # below), writes that server into polshim.ini so play uses it too (no Steam launch
-# option needed), and self-updates the shim from that server before installing.
+# option needed), and self-updates the shim from the latest release before installing.
 # Non-interactive? Set POLSHIM_SERVER=<ip> to skip the prompt.
 # =============================================================================
 set -euo pipefail
@@ -149,11 +149,14 @@ self_update() {
 
   info "a newer shim is published -- updating local files..."
   local tmp; tmp=$(mktemp -d); local f fail=0
-  for f in PolHook.dll PolHook.dll.sha256 install.sh polshim.ini README.md; do
+  for f in PolHook.dll PolHook.dll.sha256 install.sh polshim.ini; do
     curl -fsSL --max-time 120 "$BASE_URL/$f" -o "$tmp/$f" 2>/dev/null || { fail=1; break; }
   done
+  # optional: a README is a nicety, and a source without one must still update
+  curl -fsSL --max-time 60 "$BASE_URL/README.md" -o "$tmp/README.md" 2>/dev/null || rm -f "$tmp/README.md"
   if [ "$fail" = 0 ] && [ "$(sha256sum "$tmp/PolHook.dll" | awk '{print $1}')" = "$remote_hash" ]; then
-    cp -f "$tmp/PolHook.dll" "$tmp/PolHook.dll.sha256" "$tmp/polshim.ini" "$tmp/README.md" "$HERE/"
+    cp -f "$tmp/PolHook.dll" "$tmp/PolHook.dll.sha256" "$tmp/polshim.ini" "$HERE/"
+    [ -f "$tmp/README.md" ] && cp -f "$tmp/README.md" "$HERE/"
     cp -f "$tmp/install.sh" "$HERE/install.sh"; chmod +x "$HERE/install.sh"
     rm -rf "$tmp"
     ok "updated -- re-running the new installer"
@@ -615,9 +618,17 @@ if [ "$MODE" = "install" ]; then
   [ -n "$SERVER" ] || die "A server address is required. Re-run with --server=<address>, set POLSHIM_SERVER=<address> in the environment, or type one at the prompt."
 fi
 
-# Self-update source: explicit URL wins, else derive from the chosen server.
-BASE_URL="${POLSHIM_UPDATE_URL:-}"
-[ -z "$BASE_URL" ] && [ -n "$SERVER" ] && [ "$SERVER" != "CHANGE-ME" ] && BASE_URL="http://${SERVER}/shim/dist"
+# Self-update and download source. Default: the project's latest GitHub release,
+# NOT the game server -- an operator's /shim/dist may hold a private or modified
+# build, and their players should not be handed it for pointing the shim there.
+# POLSHIM_UPDATE_URL=<url> overrides; POLSHIM_UPDATE_URL=server restores the old
+# http://<server>/shim/dist for an operator who hosts their own build.
+GITHUB_BASE="https://github.com/PrettyOpenLobby/CrystalMod/releases/latest/download"
+BASE_URL="${POLSHIM_UPDATE_URL:-$GITHUB_BASE}"
+if [ "$BASE_URL" = "server" ]; then
+  BASE_URL=""
+  [ -n "$SERVER" ] && [ "$SERVER" != "CHANGE-ME" ] && BASE_URL="http://${SERVER}/shim/dist"
+fi
 
 # Where the payload (PolHook.dll / polshim.ini) is copied FROM: next to the script
 # if it's there, else a staging dir fetch_payload fills from the server.

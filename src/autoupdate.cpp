@@ -422,12 +422,19 @@ bool shim_http_bases(char out_[2][256], const char* subpath)
     return true;
 }
 
-// autoupdate's own bases: the explicit [autoupdate] url override, else the
-// shared resolution above pointed at shim/dist.
+// autoupdate's own bases. [autoupdate] url= decides:
+//   (empty)   the project's latest GitHub release (POLSHIM_UPDATE_BASE)
+//   server    the game server's own /shim/dist, both doors -- for an operator
+//             who hosts a build for their players
+//   <a URL>   exactly that
+// The default used to be the game server. That handed every player of a server
+// whatever build its operator happened to keep in /shim/dist.
 static bool base_urls(char out_[2][256])
 {
-    if (g_url[0]) { _snprintf_s(out_[0], 256, _TRUNCATE, "%s", g_url); out_[1][0] = 0; return true; }
-    return shim_http_bases(out_, "shim/dist");
+    if (_stricmp(g_url, "server") == 0) return shim_http_bases(out_, "shim/dist");
+    _snprintf_s(out_[0], 256, _TRUNCATE, "%s", g_url[0] ? g_url : POLSHIM_UPDATE_BASE);
+    out_[1][0] = 0;
+    return true;
 }
 
 // ---------------------------------------------------------------------------

@@ -27,6 +27,18 @@
 // remembered size shape-corrected, and [autoupdate] now re-checks on an interval
 // instead of only at launch. A minor bump, not a patch one: settings changed
 // meaning, and one of them stopped existing.
+// WHERE UPDATES COME FROM. A release build updates from the project's own latest
+// GitHub release, never from the game server it plays on: a server operator's
+// /shim/dist may hold a private or modified build, and players of that server
+// should not be handed it just because they pointed the shim there. GitHub's
+// `releases/latest/download/<file>` always names the newest published release,
+// over HTTPS, and serves exactly the two files the updater wants (PolHook.dll and
+// PolHook.dll.sha256). An operator who DOES want to host their own build sets
+// [autoupdate] url=server (the old <server>/shim/dist layout) or a full URL.
+#ifndef POLSHIM_UPDATE_BASE
+#define POLSHIM_UPDATE_BASE "https://github.com/PrettyOpenLobby/CrystalMod/releases/latest/download"
+#endif
+
 #ifndef POLSHIM_VERSION
 #define POLSHIM_VERSION "0.2.0"
 #endif
