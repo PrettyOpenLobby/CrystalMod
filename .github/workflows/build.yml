@@ -42,9 +42,13 @@ jobs:
           # compare against exactly this file when a server hosts the set
           $h = (Get-FileHash stage\PolHook.dll -Algorithm SHA256).Hash.ToLower()
           "$h  PolHook.dll" | Out-File -Encoding ascii -NoNewline stage\PolHook.dll.sha256
-          Get-ChildItem stage | ForEach-Object {
+          # Hash everything FIRST, write afterwards. As one pipeline, Out-File
+          # created stage\SHA256SUMS while Get-ChildItem was still listing
+          # stage\, so the step tried to hash the file it had open for writing.
+          $sums = Get-ChildItem stage -File | Sort-Object Name | ForEach-Object {
             "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
-          } | Out-File -Encoding ascii stage\SHA256SUMS
+          }
+          $sums | Out-File -Encoding ascii stage\SHA256SUMS
           Compress-Archive -Path stage\* -DestinationPath CrystalMod.zip
       - uses: actions/upload-artifact@v4
         with:
