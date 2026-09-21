@@ -3,12 +3,28 @@ rem Build the PolHook.dll proxy (32-bit -- the POL Viewer process is x86) and th
 rem one-file Windows installer PolShimSetup.exe that embeds it.
 setlocal
 
+rem Find Visual Studio instead of assuming an edition. This used to hardcode
+rem ...\2022\Community\..., which is right on a developer PC and wrong on a
+rem GitHub runner (Enterprise), so the CI build failed before compiling a line.
+rem Order: a VCVARS you set yourself, then vswhere (ships with every VS 2017+
+rem installer and with the Build Tools), then the old Community path.
+if defined VCVARS if exist "%VCVARS%" goto :have_vcvars
+set "VCVARS="
+set "VSROOT="
+set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if not exist "%VSWHERE%" goto :try_default
+for /f "usebackq delims=" %%I in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSROOT=%%I"
+if defined VSROOT set "VCVARS=%VSROOT%\VC\Auxiliary\Build\vcvarsall.bat"
+if defined VCVARS if exist "%VCVARS%" goto :have_vcvars
+:try_default
 set "VCVARS=C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat"
-if not exist "%VCVARS%" (
-  echo [!] vcvarsall.bat not found at "%VCVARS%"
-  echo     Edit build.bat to point at your Visual Studio install.
-  exit /b 1
-)
+if exist "%VCVARS%" goto :have_vcvars
+echo [!] No Visual Studio with the C++ x86 tools was found.
+echo     Install "Desktop development with C++" (or the Build Tools), or run
+echo     set VCVARS=^<path to vcvarsall.bat^>   before build.bat.
+exit /b 1
+:have_vcvars
+echo [+] using "%VCVARS%"
 
 call "%VCVARS%" x86 >nul
 if errorlevel 1 exit /b 1
