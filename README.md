@@ -44,6 +44,14 @@ build before a release is cut.
 finds the PlayOnline install under Steam, asks for the server (same default),
 and enables D3D8 through DXVK. `install.sh --revert` undoes everything.
 
+Both installers also keep PlayOnline's own `file.txt` in step. That file is the
+manifest the Viewer checks itself against, and replacing `PolHook.dll` without
+rewriting its line leaves the install disagreeing with itself: PlayOnline then
+either puts SE's DLL back at the next Check Files, or stops during an update and
+says a file is missing. The original manifest is kept as `file.txt.polshim-orig`
+and `--revert` puts it back. On Linux this step needs `python3`; without it the
+installer says so and carries on.
+
 A server name is looked up once, by the installer, and written to `polshim.ini`
 as an IP address, because that is the form the shim reads. If the server moves
 to a new address, run the installer again.

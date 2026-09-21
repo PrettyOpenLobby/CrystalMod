@@ -713,11 +713,83 @@ POL="$(find_ci pol.exe)"
 HOOK="$(find_ci PolHook.dll)"
 ORIG="$(find_ci PolHook_orig.dll)"
 
+
+# --- file.txt: PlayOnline's own integrity manifest --------------------------------
+#
+# One `DIGEST:SIZE:PATH` line per installed file. Swapping PolHook.dll without rewriting
+# its line leaves the install disagreeing with its own manifest, and PlayOnline then
+# either REVERTS the shim at the next Check Files or refuses to finish its next update,
+# telling the player a file is missing and that PlayOnline must be reinstalled. A public
+# player hit exactly that on 2026-09-21, so the swap and the manifest move together.
+#
+# The digest is MD5 re-encoded over SE's own substituted base64 alphabet (polhash.py owns
+# the algorithm; this is a transcription). python3 does it -- the same interpreter this
+# script already falls back to for hostname lookups. Without python3 we say so and carry
+# on: a warned install still plays, it just has to be repaired before a Check Files.
+POL_ALPHA='TSG8IncW3HFKokOg79qzeCmZs2yBYEQVAUxR5rbwi4P@jMDLtpvad0f_J1hlN6uX'
+
+pol_digest() {                      # pol_digest <file> -> 22-char digest, or empty
+  command -v python3 >/dev/null 2>&1 || return 1
+  python3 - "$1" "$POL_ALPHA" <<'PY' 2>/dev/null
+import hashlib, sys
+md = hashlib.md5(open(sys.argv[1], "rb").read()).digest()
+A = sys.argv[2]
+bits = "".join(format(b, "08b") for b in md)
+out = [A[int(bits[i * 6:i * 6 + 6], 2)] for i in range(21)]
+out.append(A[(md[15] & 0x03) << 4])          # the 2-bit tail, LEFT-aligned
+print("".join(out))
+PY
+}
+
+# Rewrite the ONE row for <name> so it describes the file now on disk. Keeps SE's own
+# spelling of the path, backs the manifest up once, and writes through a temp file.
+filetxt_sync() {                    # filetxt_sync <dir> <name>
+  local dir="$1" name="$2" ftxt dll digest size
+  ftxt="$(cd "$dir" && ls -1 2>/dev/null | grep -ix 'file.txt' | head -1)"
+  [ -n "$ftxt" ] || { info "No file.txt in this install -- nothing to keep in step."; return 0; }
+  ftxt="$dir/$ftxt"
+  dll="$(find_ci "$name")"
+  [ -n "$dll" ] || return 1
+  digest="$(pol_digest "$dll")" || {
+    echo "[~] python3 not found, so file.txt was left alone. PlayOnline may say a file is"
+    echo "    missing at its next update -- install python3 and re-run this to repair it."
+    return 0
+  }
+  [ -n "$digest" ] || return 1
+  size=$(wc -c < "$dll" | tr -d ' ')
+  # exactly one matching row, or leave it alone
+  local n
+  n=$(grep -c -i ":$name\$" "$ftxt" 2>/dev/null || true)
+  if [ "$n" != "1" ]; then
+    echo "[~] no single $name row in file.txt ($n found) -- left alone; Check Files may revert the shim."
+    return 0
+  fi
+  local old new
+  old="$(grep -i ":$name\$" "$ftxt")"
+  new="$digest:$size:${old##*:}"
+  [ "$old" = "$new" ] && return 0                      # already agrees
+  [ -f "$ftxt.polshim-orig" ] || cp -f "$ftxt" "$ftxt.polshim-orig"
+  awk -v old="$old" -v new="$new" '$0 == old { print new; next } { print }' \
+      "$ftxt" > "$ftxt.polshim-new" || return 1
+  mv -f "$ftxt.polshim-new" "$ftxt" || return 1
+  fix_owner "$ftxt" "$ftxt.polshim-orig"
+  ok "Updated file.txt so PlayOnline's own check agrees with the shim"
+}
+
+filetxt_restore() {                 # filetxt_restore <dir>
+  local dir="$1" ftxt
+  ftxt="$(cd "$dir" && ls -1 2>/dev/null | grep -ix 'file.txt' | head -1)"
+  [ -n "$ftxt" ] || return 0
+  [ -f "$dir/$ftxt.polshim-orig" ] || return 0
+  mv -f "$dir/$ftxt.polshim-orig" "$dir/$ftxt" && ok "Put SE's own file.txt back."
+}
+
 # --- revert ---------------------------------------------------------------------
 if [ "$MODE" = "revert" ]; then
   [ -n "$ORIG" ] || die "No PolHook_orig.dll in '$DIR' -- proxy not installed here."
   [ -n "$HOOK" ] && rm -f "$HOOK"
   mv "$ORIG" "$DIR/PolHook.dll"
+  filetxt_restore "$DIR" || true      # never fatal: the shim is already out
   ok "Reverted: SE's PolHook.dll restored."
   revert_dxvk_d3d8 || true      # never fatal: the shim is already out
   exit 0
@@ -761,6 +833,10 @@ fi
 cp -f "$SRC/PolHook.dll" "$DIR/PolHook.dll"
 fix_owner "$DIR/PolHook.dll"
 ok "Installed proxy -> $DIR/PolHook.dll"
+
+# Same breath as the swap -- see the filetxt_sync banner. Never fatal.
+filetxt_sync "$DIR" "PolHook.dll" || \
+  echo "[~] could not update file.txt -- PlayOnline may ask you to reinstall at its next update"
 
 allow_signup_rdt "$DIR"
 

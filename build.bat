@@ -37,7 +37,7 @@ rem imports -- so pol.exe loads the whole shim itself, no launcher and no admin.
 rem PolHook.def forwards the original's 6 exports to the renamed PolHook_orig.dll.
 rem dxhook.cpp adds the DirectDraw/DirectSound layer; dxguid.lib supplies
 rem IID_IDirectDraw7 / IID_IDirectSound8 (referenced, never called).
-set "SHIMSRC=..\src\inject.cpp ..\src\proxy.cpp ..\src\log.cpp ..\src\patches.cpp ..\src\fepatch.cpp ..\src\tmpathfix.cpp ..\src\authkey.cpp ..\src\dxhook.cpp ..\src\mailstore.cpp ..\src\comtrace.cpp ..\src\d3d8hook.cpp ..\src\d3d9hook.cpp ..\src\vidfit.cpp ..\src\fmvskip.cpp ..\src\wndguard.cpp ..\src\vmrfix.cpp ..\src\dinputhook.cpp ..\src\hookspy.cpp ..\src\inputgate.cpp ..\src\keystate.cpp ..\src\exitprompt.cpp ..\src\netredir.cpp ..\src\profiles.cpp ..\src\polfetch.cpp ..\src\fmokey.cpp ..\src\fmoime.cpp ..\src\msgxlate.cpp ..\src\uitrace.cpp ..\src\regredir.cpp ..\src\regfix.cpp ..\src\fmoiid.cpp ..\src\iniheal.cpp ..\src\polsettings.cpp ..\src\gamecfg.cpp ..\src\logprune.cpp ..\src\patchver.cpp ..\src\inputmode.cpp ..\src\shortcut.cpp ..\src\padmap.cpp ..\src\padoverlay.cpp ..\src\titletag.cpp ..\src\maskguard.cpp ..\src\protondxvk.cpp ..\src\sessionwatch.cpp ..\src\autoupdate.cpp ..\src\poltoken.cpp ..\src\ffxiplug.cpp ..\src\ffxicfg.cpp ..\src\crashlog.cpp ..\src\reslock.cpp ..\src\flwindow.cpp ..\src\wakerecover.cpp ..\src\fecfg.cpp"
+set "SHIMSRC=..\src\inject.cpp ..\src\proxy.cpp ..\src\log.cpp ..\src\patches.cpp ..\src\fepatch.cpp ..\src\tmpathfix.cpp ..\src\authkey.cpp ..\src\dxhook.cpp ..\src\mailstore.cpp ..\src\comtrace.cpp ..\src\d3d8hook.cpp ..\src\d3d9hook.cpp ..\src\vidfit.cpp ..\src\fmvskip.cpp ..\src\wndguard.cpp ..\src\vmrfix.cpp ..\src\dinputhook.cpp ..\src\hookspy.cpp ..\src\inputgate.cpp ..\src\keystate.cpp ..\src\exitprompt.cpp ..\src\netredir.cpp ..\src\profiles.cpp ..\src\polfetch.cpp ..\src\fmokey.cpp ..\src\fmoime.cpp ..\src\msgxlate.cpp ..\src\uitrace.cpp ..\src\regredir.cpp ..\src\regfix.cpp ..\src\fmoiid.cpp ..\src\polfiletxt.cpp ..\src\iniheal.cpp ..\src\polsettings.cpp ..\src\gamecfg.cpp ..\src\logprune.cpp ..\src\patchver.cpp ..\src\inputmode.cpp ..\src\shortcut.cpp ..\src\padmap.cpp ..\src\padoverlay.cpp ..\src\titletag.cpp ..\src\maskguard.cpp ..\src\protondxvk.cpp ..\src\sessionwatch.cpp ..\src\autoupdate.cpp ..\src\poltoken.cpp ..\src\ffxiplug.cpp ..\src\ffxicfg.cpp ..\src\crashlog.cpp ..\src\reslock.cpp ..\src\flwindow.cpp ..\src\wakerecover.cpp ..\src\fecfg.cpp"
 set "SHIMLIBS=kernel32.lib user32.lib advapi32.lib ole32.lib dxguid.lib strmiids.lib ws2_32.lib shlwapi.lib gdi32.lib shell32.lib crypt32.lib wininet.lib bcrypt.lib comctl32.lib comdlg32.lib"
 
 rem PolHook.rc replicates the original PolHook.dll VS_VERSION_INFO: pol.exe
@@ -62,7 +62,7 @@ rem Program Files. /I ..\src lets rc find setup.manifest and buildnum.h.
 rc /nologo /I ..\src /fo setup.res ..\setup.rc
 if errorlevel 1 ( popd & echo [!] setup.rc compile failed & exit /b 1 )
 cl /nologo /MT /O2 /W3 /EHsc /DWIN32 /D_CRT_SECURE_NO_WARNINGS ^
-   ..\src\setup.cpp setup.res /Fe:PolShimSetup.exe ^
+   ..\src\setup.cpp ..\src\polfiletxt.cpp setup.res /Fe:PolShimSetup.exe ^
    /link kernel32.lib user32.lib advapi32.lib wininet.lib bcrypt.lib /MANIFEST:NO
 
 set RC=%ERRORLEVEL%

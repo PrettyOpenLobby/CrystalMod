@@ -77,51 +77,9 @@ static const struct { const char* jp; const char* us; const char* what; } SUBS[]
 // only ever takes ALPHA[0/16/32/48]. Verified against all 1536 entries of the USA
 // 1.10.00c file.txt with 0 mismatches -- a reference Python implementation (polhash.py) owns the
 // algorithm and this is a transcription of it, not a second derivation.
-static const char POL_ALPHA[] =
-    "TSG8IncW3HFKokOg79qzeCmZs2yBYEQVAUxR5rbwi4P@jMDLtpvad0f_J1hlN6uX";
-
-static bool md5_bytes(const void* data, size_t len, unsigned char out[16])
-{
-    BCRYPT_ALG_HANDLE alg = NULL; BCRYPT_HASH_HANDLE h = NULL; bool ok = false;
-    if (BCryptOpenAlgorithmProvider(&alg, BCRYPT_MD5_ALGORITHM, NULL, 0) != 0) return false;
-    if (BCryptCreateHash(alg, &h, NULL, 0, NULL, 0, 0) == 0) {
-        // BCryptHashData takes a ULONG; the DLL is ~2.7 MB so this never truncates,
-        // but hash in chunks anyway rather than leave a silent cast on a size_t.
-        ok = true;
-        const unsigned char* p = (const unsigned char*)data;
-        size_t left = len;
-        while (ok && left) {
-            ULONG n = (ULONG)(left > 0x10000000u ? 0x10000000u : left);
-            ok = BCryptHashData(h, (PUCHAR)p, n, 0) == 0;
-            p += n; left -= n;
-        }
-        if (ok) ok = BCryptFinishHash(h, out, 16, 0) == 0;
-        BCryptDestroyHash(h);
-    }
-    BCryptCloseAlgorithmProvider(alg, 0);
-    return ok;
-}
-
-// 6 bits starting at `bitpos`, MSB-first across the 16-byte digest.
-static unsigned bits6(const unsigned char* d, int bitpos)
-{
-    unsigned v = 0;
-    for (int k = 0; k < 6; k++) {
-        int b = bitpos + k;
-        v = (v << 1) | ((d[b >> 3] >> (7 - (b & 7))) & 1);
-    }
-    return v;
-}
-
-bool pol_digest(const void* data, size_t len, char out[23])
-{
-    unsigned char md[16];
-    if (!md5_bytes(data, len, md)) { out[0] = 0; return false; }
-    for (int i = 0; i < 21; i++) out[i] = POL_ALPHA[bits6(md, 6 * i)];
-    out[21] = POL_ALPHA[(md[15] & 0x03) << 4];   // the 2-bit tail, LEFT-aligned
-    out[22] = 0;
-    return true;
-}
+// POL_ALPHA / md5_bytes / bits6 / pol_digest MOVED to polfiletxt.cpp (2026-09-21),
+// which PolShimSetup.exe links too -- one implementation of the digest rather than a
+// copy per caller. Declared in polshim.h.
 
 // --- GUID text -> the 16 bytes as they appear in a binary --------------------------
 //

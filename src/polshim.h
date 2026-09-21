@@ -788,6 +788,25 @@ bool fmoiid_repair(const char* installdir, bool apply, bool force, FmoIidReport*
 // The updater-manifest digest: base64(MD5) over SE's substituted alphabet, 22 chars.
 bool pol_digest(const void* data, size_t len, char out[23]);
 
+// polfiletxt.cpp -- keep <install>\file.txt in step with a file we replaced. Swapping a
+// file without its manifest row is what makes Check Files revert it and the Viewer's own
+// update refuse to finish ("a file is missing, reinstall PlayOnline"), so the installer
+// repairs the row in the same step as the swap.
+struct FileTxtReport {
+    bool written;            // the row was rewritten (or the manifest put back)
+    bool already_ok;         // it already described the file on disk
+    bool backup_written;     // file.txt.polshim-orig was created by this call
+    bool no_manifest;        // this install carries no file.txt at all
+    char was[160];
+    char now[160];
+    char err[200];
+};
+// Rewrite `name`'s row to match the bytes of <installdir>\<name> on disk. `apply` false
+// surveys only. True = the manifest agrees (or there was none to disagree with).
+bool filetxt_sync(const char* installdir, const char* name, bool apply, FileTxtReport* r);
+// Put SE's own manifest back from the backup this wrote.
+bool filetxt_restore(const char* installdir, FileTxtReport* r);
+
 // uitrace.cpp -- record the TEXT of every screen the Viewer draws, by hooking the
 // StringTable-id thunk in app.dll, and dump the last few at exit. Written because two
 // launch failures in a row were diagnosed from the ABSENCE of log lines and both

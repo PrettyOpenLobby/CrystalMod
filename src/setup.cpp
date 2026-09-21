@@ -474,6 +474,13 @@ static int do_revert(const char* dir)
         return fail("Could not restore PolHook_orig.dll -> PolHook.dll (error %lu). Is the Viewer running?",
                     GetLastError());
 
+    {
+        FileTxtReport ft;
+        if (filetxt_restore(dir, &ft))
+            ok("Put SE's own file.txt back.");
+        else if (ft.err[0])
+            info("%s", ft.err);
+    }
     ok("Reverted: SE's original PolHook.dll is back in place.");
     info("polshim.ini and polshim.*.log were left alone -- delete them if you want a clean tree.");
     pause_if_own_console();
@@ -554,6 +561,13 @@ int main(int argc, char** argv)
     // the only way to exercise auto-detect without committing to an install.
     if (where) {
         info("Shim installed here: %s", file_exists(orig) ? "YES (PolHook_orig.dll present)" : "no");
+        {
+            FileTxtReport ft;
+            bool okft = filetxt_sync(dir, "PolHook.dll", false, &ft);
+            info("file.txt agrees:    %s", !okft ? ft.err
+                 : ft.no_manifest ? "no file.txt here"
+                 : ft.already_ok ? "yes" : "NO -- run the installer again to repair it");
+        }
         info("polshim.ini:         %s", file_exists(ini)  ? ini : "(none)");
         pause_if_own_console();
         return 0;
@@ -693,6 +707,26 @@ int main(int argc, char** argv)
     }
     ok("Installed the shim as %s (%lu bytes)", hook, dll_len);
     free(downloaded);
+
+    // KEEP file.txt IN STEP, in the same breath as the swap. The manifest still
+    // describes SE's PolHook.dll, and an install that disagrees with its own
+    // manifest is one Check Files away from having the shim reverted -- and its
+    // next Viewer update stops with "a file is missing, reinstall PlayOnline",
+    // which is how a public player hit this on 2026-09-21. Never fatal: the shim
+    // is installed and working by this point, and a manifest we could not repair
+    // is worth a warning, not a failed install.
+    {
+        FileTxtReport ft;
+        if (filetxt_sync(dir, "PolHook.dll", true, &ft)) {
+            if (ft.written)
+                ok("Updated file.txt so PlayOnline's own check agrees with the shim");
+            else if (ft.no_manifest)
+                info("No file.txt in this install -- nothing to keep in step.");
+        } else {
+            warn("%s", ft.err);
+            warn("If PlayOnline ever says a file is missing, run this installer again.");
+        }
+    }
 
     // --- 5. config -------------------------------------------------------------
     if (!file_exists(ini)) {
