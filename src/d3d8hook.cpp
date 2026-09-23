@@ -578,6 +578,13 @@ static PFN_DevReset             orig_Reset           = NULL;
 static bool                     g_dev_hooked         = false;
 static LONG g_n_create = 0, g_n_device = 0, g_n_reset = 0;
 static LONG g_n_forced = 0, g_n_retry = 0, g_n_fullscreen_seen = 0;
+// The last CreateDevice as it reached the real d3d8, kept for the bug report.
+static UINT    g_cd_adapter = 0;
+static DWORD   g_cd_devtype = 0, g_cd_behavior = 0, g_cd_tick = 0;
+static HRESULT g_cd_hr = 0;
+static HWND    g_cd_focus = NULL;
+static int     g_cd_have = 0;
+static volatile HRESULT g_last_present_hr = 0;
 
 // --- render diagnostic (d3d_renderspy) state -------------------------------
 static PFN_SetTransform          orig_SetTransform    = NULL;
@@ -3423,6 +3430,11 @@ static HRESULT STDMETHODCALLTYPE hook_CreateDevice(void* self, UINT adapter, DWO
         // follow the live one.
         if (g_dev_vt_ok) wake_arm_d3d8(*ppDev, g_game_window);
     }
+    // For the bug report (d3d8_diag_text): the call as the REAL CreateDevice saw
+    // it, after every override above, so a report shows the device the title
+    // actually got rather than the one it asked for.
+    g_cd_adapter = adapter; g_cd_devtype = devtype; g_cd_behavior = behavior;
+    g_cd_hr = hr; g_cd_focus = focus; g_cd_tick = GetTickCount(); g_cd_have = 1;
     return hr;
 }
 
@@ -3822,6 +3834,7 @@ static HRESULT STDMETHODCALLTYPE hook_Present(void* self, const void* a, const v
     tm_resv_diag_start();
     HRESULT hr = orig_Present(self, a, b, c, d);
     LONG n = InterlockedIncrement(&g_n_present);
+    g_last_present_hr = hr;
     // The heartbeat is renderspy's instrument. Since the sleep/resume recovery
     // also needs this slot, Present is now hooked in sessions where renderspy is
     // OFF -- and at 60fps a line every 1000 frames is one every 16 seconds for
@@ -6068,4 +6081,97 @@ bool d3d_display_toggle(char* why, size_t cap)
          posted ? "on its own thread" : "directly");
     if (why) _snprintf_s(why, cap, _TRUNCATE, "%s is now %ls", leaf, display_mode_name(next));
     return true;
+}
+
+// ---------------------------------------------------------------------------
+// THE BUG REPORT'S VIEW OF THE d3d8 DEVICE (polreport.cpp -> diag.txt).
+//
+// A "black screen" report can mean three different faults, and this block is
+// what tells them apart without a second round trip to the player:
+//   - Present count NOT rising: the title's frame loop has stopped (a hang, or
+//     it is stuck waiting on something before it draws);
+//   - Present rising, BeginScene rising: the title is drawing and the pixels
+//     are not reaching the screen (render target, window or compositor);
+//   - no device at all: the title never got as far as creating one.
+// `sample_ms` > 0 re-reads the counters after that many milliseconds so the
+// report carries a RATE, which is the part that separates the first two.
+// Read-only: every value here is a counter or a copy this file already keeps.
+// ---------------------------------------------------------------------------
+static const char* behavior_names(DWORD b, char* out, size_t cch)
+{
+    out[0] = 0;
+    struct { DWORD bit; const char* name; } k[] = {
+        { 0x02, "FPU_PRESERVE" }, { 0x04, "MULTITHREADED" }, { 0x10, "PUREDEVICE" },
+        { 0x20, "SOFTWARE_VP" },  { 0x40, "HARDWARE_VP" },   { 0x80, "MIXED_VP" },
+    };
+    for (size_t i = 0; i < sizeof(k) / sizeof(k[0]); i++) {
+        if (!(b & k[i].bit)) continue;
+        if (out[0]) strncat_s(out, cch, "|", _TRUNCATE);
+        strncat_s(out, cch, k[i].name, _TRUNCATE);
+    }
+    return out;
+}
+
+int d3d8_diag_text(char* out, size_t cch, DWORD sample_ms)
+{
+    if (!out || cch < 64) return 0;
+    size_t n = 0;
+#define DAPP(...) do { if (n < cch) { int w_ = _snprintf_s(out + n, cch - n, _TRUNCATE, __VA_ARGS__); \
+                          if (w_ > 0) n += (size_t)w_; else n = cch; } } while (0)
+    out[0] = 0;
+    DAPP("create_calls: %ld  forced_windowed: %ld  replays: %ld  resets: %ld\n",
+         g_n_create, g_n_forced, g_n_retry, g_n_reset);
+    DAPP("settings: d3d_windowed=%d d3d_vp=%d d3d_fakemode=%d renderspy=%d\n",
+         g_d3d_windowed, g_d3d_vp, g_d3d_fakemode, g_d3d_renderspy);
+    if (!g_cd_have) {
+        DAPP("device: none created yet by a d3d8 title in this process\n");
+        return (int)n;
+    }
+    char bn[96];
+    DAPP("last_create: adapter=%u devtype=%lu behavior=0x%08lX (%s) hr=0x%08lX "
+         "focus=%p %lus ago\n",
+         g_cd_adapter, (unsigned long)g_cd_devtype, (unsigned long)g_cd_behavior,
+         behavior_names(g_cd_behavior, bn, sizeof(bn)), (unsigned long)g_cd_hr,
+         (void*)g_cd_focus, (unsigned long)((GetTickCount() - g_cd_tick) / 1000));
+    if (g_pp_have) {
+        const D3D8_PRESENT_PARAMETERS* p = &g_pp_last;
+        DAPP("present_params: %ux%u fmt=%lu count=%u swap=%s windowed=%d "
+             "refresh=%uHz interval=%u hwnd=%p\n",
+             p->BackBufferWidth, p->BackBufferHeight, (unsigned long)p->BackBufferFormat,
+             p->BackBufferCount, swapeffect_name(p->SwapEffect), p->Windowed,
+             p->FullScreen_RefreshRateInHz, p->FullScreen_PresentationInterval,
+             (void*)p->hDeviceWindow);
+    }
+    DAPP("game_window: %p  device: %p (%s)\n", (void*)g_game_window, g_game_device,
+         g_game_device ? "live" : "released");
+
+    LONG p0 = g_n_present, b0 = g_n_begin, d0 = g_rs_draw_total;
+    DAPP("present: %s, total=%ld last_hr=0x%08lX\n",
+         orig_Present ? "hooked" : "NOT hooked (no counts)", p0,
+         (unsigned long)g_last_present_hr);
+    DAPP("begin_scene: %s, total=%ld\n",
+         orig_BeginScene ? "hooked" : "not hooked (renderspy off)", b0);
+    if (g_rs_hooked)
+        DAPP("draws: total=%ld 2d=%ld 3d=%ld other=%ld up=%ld persp=%ld ortho=%ld\n",
+             d0, g_rs_draw_2d, g_rs_draw_3d, g_rs_draw_other, g_rs_up_calls,
+             g_rs_proj_persp, g_rs_proj_ortho);
+    if (sample_ms) {
+        Sleep(sample_ms);
+        LONG p1 = g_n_present, b1 = g_n_begin, d1 = g_rs_draw_total;
+        double s = sample_ms / 1000.0;
+        DAPP("rate_over_%lums: present=%.1f/s begin_scene=%.1f/s%s\n",
+             (unsigned long)sample_ms, (p1 - p0) / s, (b1 - b0) / s,
+             g_rs_hooked ? "" : " (draws not counted)");
+        if (g_rs_hooked)
+            DAPP("draw_rate: %.1f/s (%.1f per frame)\n", (d1 - d0) / s,
+                 (p1 > p0) ? (double)(d1 - d0) / (p1 - p0) : 0.0);
+        if (orig_Present && p1 == p0)
+            DAPP("verdict: NO frames presented during the sample -- the title's "
+                 "frame loop is stopped or blocked\n");
+        else if (orig_Present)
+            DAPP("verdict: the title IS presenting frames -- if the screen is "
+                 "black, the frames are not reaching it\n");
+    }
+#undef DAPP
+    return (int)n;
 }

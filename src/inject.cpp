@@ -2032,6 +2032,11 @@ static void startup()
     wndguard_configure(ini);    // reads [polshim] wndproc_guard; neutralises a WNDPROC
                                 // left behind by a DLL that unloads with a live window
     titletag_configure(ini);    // reads [polshim] titletag; builds the version tag string
+    // BEFORE polsettings_start, which parses the report key and logs whether it is
+    // armed -- that line reads polreport_armed(). Neither call sends anything: the
+    // report key gathers and asks first, and only the player's Send posts it.
+    logship_configure(ini, logpath);   // the report's log snapshot + redaction + endpoint
+    polreport_configure(ini);   // reads [report]; the player's one-key bug report
     polsettings_start(ini);     // reads [settings]; watcher thread for the settings-dialog chord
 
     logf("[init] polshim in pid %lu; targets=%d verbose=%d capture=%d dx=%d comtrace=%d redirect=%d",

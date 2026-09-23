@@ -15,7 +15,9 @@ titles on modern Windows and on Steam Deck / Proton. It does two things:
   Proton D3D8-on-DXVK opt-in, OS dialog translation, and an in-game
   settings dialog (Home key, or Back+Start on a pad).
 
-Nothing else: no telemetry, no automation, no bundled third-party tools.
+Nothing else: no telemetry, no automation, no bundled third-party tools. The
+one thing that sends data is a problem report you file yourself (see
+"Reporting a problem").
 
 ## How it works
 
@@ -71,6 +73,36 @@ wants to host a build for their own players unzips a release's set into
 url=server` (installers: `--update-url=server`, or `POLSHIM_UPDATE_URL=server`
 for `install.sh`). The `PolHook.dll.sha256` in that folder is what the updater
 and `install.sh` compare against.
+
+## Reporting a problem
+
+Press **Ctrl+Shift+R** (or View + right shoulder on a controller) while the
+Viewer or a game is in front. CrystalMod takes a screenshot at that moment,
+then opens a box where you describe what went wrong. Nothing is sent until
+you click **Send report**; Cancel throws everything away.
+
+A report goes to the game server you play on (never to Square Enix, and
+never anywhere if no server is set up) and contains:
+
+- your description and the kind of problem you picked;
+- your computer's name, the Windows version and the PlayOnline session id
+  (so the server can find the same minutes in its own logs);
+- the end of this session's CrystalMod log (and the previous session's, if
+  it crashed), and your `polshim.ini`, with passwords, login tokens and
+  session keys blanked out first;
+- a picture of the game window;
+- `diag.txt`: GPU and driver version, each monitor's resolution and display
+  scaling, Windows compatibility settings on `pol.exe`, which graphics DLLs
+  are loaded (and whether they are Windows' own or a wrapper such as DXVK),
+  programs that have loaded themselves into the game (overlays and
+  recorders), the game's windows, and one second of frame counting.
+  Folder paths under your user profile are shortened to `%USERPROFILE%`,
+  and for other programs' windows only the program's file name is
+  recorded, never the window title.
+
+The server answers with a report id; include it if you talk to the server's
+admins about the problem. Each part can be switched off under "Reporting a
+problem" in the settings dialog, or in `polshim.ini` (`[report]`).
 
 ## Build
 

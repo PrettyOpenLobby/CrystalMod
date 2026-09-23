@@ -50,9 +50,9 @@
 // THIS MODULE CHANGES NO BEHAVIOUR. Both hooks call the original and log what it
 // produced. If it is ever seen to alter a session, that is a bug.
 //
-// WARNING: It logs key material to polshim.<pid>.log by design. That log can be shipped
-// by [logship], whose redaction covers credentials and not this, so leave
-// `enable` off on any install whose logs leave the machine.
+// WARNING: It logs key material to polshim.<pid>.log by design. A bug report blanks
+// the key16/auth52 lines (logship.cpp's redaction list), but the log file itself
+// keeps them, so leave `enable` off unless you are debugging FMO's login.
 #include "polshim.h"
 #include "fmokey.h"
 

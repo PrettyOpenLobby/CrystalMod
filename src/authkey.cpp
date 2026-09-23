@@ -57,9 +57,9 @@
 // that login. So the force is refused, loudly, whenever SE-bypass is on. Logging
 // stays safe in every mode.
 //
-// WARNING: It logs key material to polshim.<pid>.log. [logship] redaction does not
-// cover it. K is normally all-zeros here, but leave `log` off on any install
-// whose logs leave the machine and that you do not want carrying auth IVs.
+// WARNING: It logs key material to polshim.<pid>.log. A bug report blanks it
+// (logship.cpp's redaction list leads with "polcryptInit K="), but the log file
+// itself keeps it, so leave `log` off unless you are debugging a login.
 #include "polshim.h"
 
 // --- polcore RVAs (ImageBase 0x037C0000, read off the unpacked polcore.dll) ---

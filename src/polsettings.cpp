@@ -116,6 +116,13 @@ static UINT     g_dp_hk_mods[HK_MAX];
 static UINT     g_dp_hk_vk[HK_MAX];
 static int      g_dp_hk_count = 0;
 static WORD     g_padui_mask = 0;
+// The REPORT key (polreport.cpp). Parsed here because this file owns parse_hotkey,
+// parse_pad and the watcher that polls them; a second parser is a second set of
+// rules about what "back+rb" means.
+static UINT     g_rp_hk_mods[HK_MAX];
+static UINT     g_rp_hk_vk[HK_MAX];
+static int      g_rp_hk_count = 0;
+static WORD     g_rp_pad_mask = 0;
 static WORD     g_pad_mask = 0;
 static int      g_pad_debug = 0;
 static int      g_fullscreen_ok = 0; // open even over an exclusive fullscreen title
@@ -2906,6 +2913,17 @@ static bool kbd_chord_list_down(const UINT* mods, const UINT* vks, int count)
     return false;
 }
 
+// GetAsyncKeyState is SYSTEM-WIDE: without this, Ctrl+Shift+R pressed in a web
+// browser while the Viewer runs behind it would open a report box and screenshot
+// the browser. The report key only counts while one of OUR windows is in front.
+static bool foreground_is_ours()
+{
+    HWND fg = GetForegroundWindow();
+    DWORD pid = 0;
+    if (fg) GetWindowThreadProcessId(fg, &pid);
+    return pid == GetCurrentProcessId();
+}
+
 static bool kbd_chord_down()
 {
     return kbd_chord_list_down(g_hk_mods, g_hk_vk, g_hk_count);
@@ -2978,7 +2996,7 @@ static bool pad_chord_down()
 static DWORD WINAPI watcher(LPVOID)
 {
     xinput_resolve();
-    bool was = false, was_ui = false, was_dp = false;
+    bool was = false, was_ui = false, was_rp = false, was_dp = false;
     for (;;) {
         // The MAPPER chord is tested first and, when it fires, consumes the tick. The
         // two chords share the `back` button, so a settings chord pressed a frame later
@@ -2989,11 +3007,21 @@ static DWORD WINAPI watcher(LPVOID)
         if (ui && !was_ui) padoverlay_toggle();
         was_ui = ui;
 
+        // THE REPORT KEY. It consumes the tick like the mapper does: `back+rb` shares
+        // `back` with the settings chord's `back+start`, and a player rolling a thumb
+        // across both would otherwise get the settings dialog stacked behind the
+        // report box. Tested before settings because it is the one pressed in a hurry.
+        bool rp = !ui && foreground_is_ours() && polreport_armed() &&
+                  (kbd_chord_list_down(g_rp_hk_mods, g_rp_hk_vk, g_rp_hk_count) ||
+                   pad_mask_down(g_rp_pad_mask));
+        if (rp && !was_rp && !padoverlay_active()) polreport_open();   // edge-triggered
+        was_rp = rp;
+
         // THE DISPLAY SWITCH, edge-triggered like the others. Alt+Enter shares
         // nothing with the chords above, so it does not consume the tick.
         bool dp = g_dp_hk_count > 0 &&
                   kbd_chord_list_down(g_dp_hk_mods, g_dp_hk_vk, g_dp_hk_count);
-        if (dp && !was_dp && !ui && !padoverlay_active()) {
+        if (dp && !was_dp && !ui && !rp && !padoverlay_active()) {
             char why[200] = "";
             if (d3d_display_toggle(why, sizeof(why)))
                 logf("[display] hotkey: %s", why);
@@ -3002,7 +3030,7 @@ static DWORD WINAPI watcher(LPVOID)
         }
         was_dp = dp;
 
-        bool now = !ui && (kbd_chord_down() || pad_chord_down());
+        bool now = !ui && !rp && (kbd_chord_down() || pad_chord_down());
         // Never open the dialog on top of the overlay: the overlay owns the pad, so the
         // dialog behind it could be neither seen nor dismissed.
         if (now && !was && !padoverlay_active()) polsettings_open();   // edge-triggered
@@ -3778,6 +3806,18 @@ static void settings_load_chords(const wchar_t* ini)
     logf("[display] hotkey '%ls' armed (%d chord(s)) -- windowed <-> borderless for the "
          "running game", dpkey, g_dp_hk_count);
 
+    // THE REPORT KEY.
+    wchar_t rpkey[128];
+    ini_str(L"report", L"hotkey", POLREPORT_DEFAULT_HOTKEY, rpkey, _countof(rpkey), ini);
+    wchar_t rpbad[128] = L"";
+    g_rp_hk_count = parse_hotkey_list(rpkey, g_rp_hk_mods, g_rp_hk_vk, HK_MAX,
+                                      rpbad, _countof(rpbad));
+    if (rpbad[0])
+        logf("[report] hotkey: ignored unparsable chord(s) '%ls'", rpbad);
+    wchar_t rppad[128];
+    ini_str(L"report", L"pad_chord", L"back+rb", rppad, _countof(rppad), ini);
+    g_rp_pad_mask = parse_pad(rppad);
+
     // Echo the chord back in the SAME vocabulary the ini uses. The old line printed raw
     // masks, which is useless for the one question people actually have -- "is the
     // button I am pressing the button it is waiting for". Note `back` is the small
@@ -3799,6 +3839,20 @@ static void settings_load_chords(const wchar_t* ini)
     if (!g_padui_mask && g_ui_hk_count == 0)
         logf("[settings] the controller mapper has NO way to open -- both padui_chord "
              "'%ls' and padui_hotkey '%ls' armed nothing", uispec, uikey);
+
+    // The report key, in the same vocabulary, so "which keys file a report" can be
+    // checked in the log without a working game.
+    {
+        char rpn[128]; pad_names(g_rp_pad_mask, rpn, sizeof(rpn));
+        if (polreport_armed())
+            logf("[report] armed -- keyboard '%ls', pad '%s' (mask 0x%04X)",
+                 rpkey, rpn, g_rp_pad_mask);
+        else
+            logf("[report] off ([report] enable=0) -- the report key does nothing");
+        if (polreport_armed() && !g_rp_pad_mask && g_rp_hk_count == 0)
+            logf("[report] there is NO way to file a report -- both hotkey '%ls' "
+                 "and pad_chord '%ls' armed nothing", rpkey, rppad);
+    }
 }
 
 void polsettings_start(const wchar_t* ini)

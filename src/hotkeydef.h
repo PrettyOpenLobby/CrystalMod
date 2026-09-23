@@ -17,3 +17,10 @@
 #pragma once
 
 #define POLSHIM_DEFAULT_HOTKEY   L"home,ctrl+shift+s"
+
+// The REPORT key's default, here for the same reason: iniheal.cpp's option table
+// and polsettings.cpp's fallback both need it. Deliberately NOT a bare key: `end`
+// is what a player presses in a chat box to jump to the end of the line, and a
+// report box opening mid-sentence is its own bug. The controller chord,
+// `back+rb`, is in the option table beside it.
+#define POLREPORT_DEFAULT_HOTKEY L"ctrl+shift+r"

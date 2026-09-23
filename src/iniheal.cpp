@@ -736,6 +736,34 @@ static const ShimOption g_opts[] = {
     L"Same as launching that game's desktop shortcut. You still log in first." },
 
   // ==========================================================================
+  { NULL, NULL, NULL, OPT_GROUP, L"Reporting a problem", L"Reporting a problem", false, NULL },
+  // ==========================================================================
+  // THE REPORT KEY (polreport.cpp). The player presses it, types what went wrong,
+  // and their log, settings, a screenshot and diag.txt go to the game server,
+  // which files them beside the same minutes of its OWN logs
+  // (services/issuereport.py). On by default because it never acts on its own:
+  // nothing leaves the machine until a person presses the key, reads a box that
+  // says what will be sent, and clicks Send.
+  { L"report",    L"enable",         L"1",    OPT_BOOL, L"Let me report a problem with a hotkey", NULL, false,
+    L"Nothing is sent until you press the key and click Send." },
+  { L"report",    L"hotkey",         POLREPORT_DEFAULT_HOTKEY, OPT_TEXT, L"Report a problem hotkey", NULL, false,
+    L"Only works while the Viewer or a game is the window in front." },
+  { L"report",    L"pad_chord",      L"back+rb", OPT_TEXT, L"Report a problem (controller)", NULL, false,
+    L"View (or Select) and the right shoulder button." },
+  { L"report",    L"screenshot",     L"1",    OPT_BOOL, L"Include a picture of the game window", NULL, false,
+    L"Taken the moment you press the key, not when you click Send." },
+  { L"report",    L"diagnostics",    L"1",    OPT_BOOL, L"Include system and graphics details", NULL, false,
+    L"GPU and driver, display scaling, overlays. Most black screens are decided by these." },
+  { L"report",    L"include_ini",    L"1",    OPT_BOOL, L"Include my settings file",             NULL, true,
+    L"polshim.ini, with passwords stripped." },
+  { L"report",    L"include_prev",   L"1",    OPT_BOOL, L"Include the last session's log if it crashed", NULL, true },
+  { L"report",    L"max_log_bytes",  L"1048576", OPT_TEXT, L"Most bytes of log to attach",       NULL, true },
+  { L"report",    L"max_shot_bytes", L"8388608", OPT_TEXT, L"Most bytes of screenshot to attach", NULL, true },
+  // Turning this off sends passwords and login tokens with the log. A developer
+  // row only, so that unticking it is a deliberate act.
+  { L"logship",   L"redact",         L"1",    OPT_BOOL, L"Remove passwords from reports",       NULL, true },
+
+  // ==========================================================================
   { NULL, NULL, NULL, OPT_GROUP, L"Other", L"Other", false, NULL },
   { L"proton",    L"dxvk_d3d8",      L"1",    OPT_BOOL,
     L"Steam Deck: faster graphics for the older games", NULL, false,

@@ -1026,6 +1026,26 @@ void  settings_dialog_size(bool show_dev, int* cw, int* ch);
 HANDLE ui_dpi_fit_begin(void);
 void   ui_dpi_fit_end(HANDLE prev);
 
+// polreport.cpp -- the report key: the player files a bug report in one step.
+void  polreport_configure(const wchar_t* ini);
+void  polreport_open();                   // gather, ask, send (the watcher thread calls it)
+int   polreport_armed();                  // [report] enable, after configure
+// The bundle builder. services/issuereport.py (parse_bundle) is the other half of
+// this format and the two must agree byte for byte. Caller free()s; `desc` is UTF-8.
+char* polreport_build(const char* desc, const char* category,
+                      const char* const* extra_names,
+                      const char* const* extra_bodies,
+                      const unsigned long* extra_lens, int extra_count,
+                      unsigned long* out_len);
+
+// logship.cpp -- the report's log snapshot, redaction and server endpoint. It
+// sends nothing on its own.
+void  logship_configure(const wchar_t* ini, const wchar_t* logpath);
+
+// sysdiag.cpp / d3d8hook.cpp -- the report's diag.txt.
+char* sysdiag_collect(DWORD* out_len);
+int   d3d8_diag_text(char* out, size_t cch, DWORD sample_ms);
+
 void  dx_configure(const wchar_t* ini);
 // [dx] dpi_aware. Declares the process DPI-aware so Windows stops bitmap-
 // stretching the window (a second resample on top of the game's own 640x480
